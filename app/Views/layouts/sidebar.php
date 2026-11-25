@@ -24,6 +24,7 @@ $menu = [
 
     ['type' => 'heading', 'label' => 'Administrasi',                                                                                                   'roles' => $admin],
     ['type' => 'item',    'label' => 'Manajemen Pengguna', 'url' => 'admin/pengguna', 'icon' => 'bi-people',            'match' => 'admin/pengguna*', 'roles' => $admin],
+    ['type' => 'item',    'label' => 'Penilaian Alternatif', 'url' => 'admin/nilai',  'icon' => 'bi-table',             'match' => 'admin/nilai*',    'roles' => $admin],
 ];
 ?>
 <aside class="sidebar" id="appSidebar" aria-label="Navigasi utama">

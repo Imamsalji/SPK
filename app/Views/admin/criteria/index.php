@@ -54,12 +54,20 @@ $active  = array_values(array_filter($criteria, static fn($c) => (int) $c['is_ac
                                         'default_weight' => plain_number($c['default_weight']),
                                         'sort_order'     => (string) (int) $c['sort_order'],
                                         'is_active'      => (string) (int) $c['is_active'],
+                                        'source_field'   => $c['source_field'] ?? '',
+                                        'require_source' => (string) (int) ($c['require_source'] ?? 0),
                                     ];
                                     ?>
                                     <tr>
                                         <td class="fw-semibold"><?= esc($c['code']) ?></td>
                                         <td>
                                             <?= esc($c['name']) ?>
+                                            <?php if (($c['source_field'] ?? '') === 'price'): ?>
+                                                <span class="badge text-bg-info ms-1" title="Nilai diambil otomatis dari harga laptop">Otomatis: harga</span>
+                                            <?php endif; ?>
+                                            <?php if ((int) ($c['require_source'] ?? 0) === 1): ?>
+                                                <span class="badge text-bg-secondary ms-1" title="Sumber data wajib dicantumkan">Wajib sumber</span>
+                                            <?php endif; ?>
                                             <?php if (! empty($c['description'])): ?>
                                                 <div class="small text-body-secondary"><?= esc($c['description']) ?></div>
                                             <?php endif; ?>
@@ -186,6 +194,24 @@ $active  = array_values(array_filter($criteria, static fn($c) => (int) $c['is_ac
                         <input type="number" id="cr_weight" name="default_weight" class="form-control<?= invalid_class('default_weight') ?>"
                             min="0" max="100" step="0.01" value="0" required>
                         <?= field_feedback('default_weight') ?>
+                    </div>
+                    <div class="col-md-8">
+                        <label for="cr_source" class="form-label">Sumber nilai</label>
+                        <select id="cr_source" name="source_field" class="form-select<?= invalid_class('source_field') ?>">
+                            <option value="">Input manual per laptop</option>
+                            <option value="price">Otomatis dari harga laptop</option>
+                        </select>
+                        <?= field_feedback('source_field') ?>
+                        <div class="form-text">Hanya satu kriteria yang boleh memakai harga laptop (biasanya berjenis Cost).</div>
+                    </div>
+                    <div class="col-md-4 d-flex align-items-center">
+                        <div>
+                            <input type="hidden" name="require_source" value="0">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" role="switch" id="cr_reqsrc" name="require_source" value="1">
+                                <label class="form-check-label" for="cr_reqsrc">Wajib cantumkan sumber data</label>
+                            </div>
+                        </div>
                     </div>
                     <div class="col-12">
                         <label for="cr_desc" class="form-label">Deskripsi <span class="text-body-secondary">(opsional)</span></label>

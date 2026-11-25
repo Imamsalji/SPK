@@ -4,7 +4,10 @@ namespace App\Controllers\Admin;
 
 use App\Controllers\BaseController;
 use App\Models\CriterionModel;
+use App\Services\ScoreService;
 use CodeIgniter\Exceptions\PageNotFoundException;
+use RuntimeException;
+use Throwable;
 
 class Criteria extends BaseController
 {
@@ -30,9 +33,12 @@ class Criteria extends BaseController
             return redirect_form_errors(self::URI, 'create', null, $this->validator->getErrors(), $input);
         }
 
-        model(CriterionModel::class)->insert($this->toRow($input));
+        $criterionId = $this->persist(null, $input);
+        if ($criterionId === false) {
+            return redirect_form_errors(self::URI, 'create', null, ['code' => 'Data gagal disimpan. Silakan coba lagi.'], $input);
+        }
 
-        return $this->done('Kriteria ' . $input['code'] . ' berhasil ditambahkan.');
+        return $this->done('Kriteria ' . $input['code'] . ' berhasil ditambahkan.', $criterionId);
     }
 
     public function update(int $id)
@@ -44,9 +50,11 @@ class Criteria extends BaseController
             return redirect_form_errors(self::URI, 'edit', $id, $this->validator->getErrors(), $input);
         }
 
-        model(CriterionModel::class)->update($criterion['id'], $this->toRow($input));
+        if ($this->persist((int) $criterion['id'], $input) === false) {
+            return redirect_form_errors(self::URI, 'edit', $id, ['code' => 'Data gagal disimpan. Silakan coba lagi.'], $input);
+        }
 
-        return $this->done('Kriteria ' . $input['code'] . ' berhasil diperbarui.');
+        return $this->done('Kriteria ' . $input['code'] . ' berhasil diperbarui.', (int) $criterion['id']);
     }
 
     public function destroy(int $id)
@@ -108,6 +116,49 @@ class Criteria extends BaseController
 
     // ------------------------------------------------------------------
 
+    /**
+     * Simpan kriteria. Bila kriteria ini adalah sumber harga, seluruh nilai harga laptop
+     * disinkronkan dalam transaksi yang sama.
+     *
+     * @return int|false ID kriteria, atau false bila gagal
+     */
+    private function persist(?int $id, array $input): int|false
+    {
+        $db    = db_connect();
+        $model = model(CriterionModel::class);
+        $row   = $this->toRow($input);
+
+        try {
+            $db->transBegin();
+
+            if ($id === null) {
+                $saved = $model->insert($row);
+                if ($saved === false) {
+                    throw new RuntimeException('Gagal menyimpan kriteria.');
+                }
+                $criterionId = (int) $saved;
+            } else {
+                if ($model->update($id, $row) === false) {
+                    throw new RuntimeException('Gagal memperbarui kriteria.');
+                }
+                $criterionId = $id;
+            }
+
+            if ($row['source_field'] === ScoreService::PRICE_FIELD) {
+                (new ScoreService())->syncPriceForAllLaptops();
+            }
+
+            $db->transCommit();
+
+            return $criterionId;
+        } catch (Throwable $e) {
+            $db->transRollback();
+            log_message('error', 'Criteria::persist: ' . $e->getMessage());
+
+            return false;
+        }
+    }
+
     private function collect(): array
     {
         return [
@@ -116,6 +167,8 @@ class Criteria extends BaseController
             'description'    => trim((string) $this->request->getPost('description')),
             'type'           => (string) $this->request->getPost('type'),
             'unit'           => trim((string) $this->request->getPost('unit')),
+            'source_field'   => (string) $this->request->getPost('source_field'),
+            'require_source' => (string) $this->request->getPost('require_source') === '1' ? '1' : '0',
             'default_weight' => trim((string) $this->request->getPost('default_weight')),
             'sort_order'     => trim((string) $this->request->getPost('sort_order')),
             'is_active'      => (string) $this->request->getPost('is_active') === '1' ? '1' : '0',
@@ -130,6 +183,8 @@ class Criteria extends BaseController
             'description'    => $input['description'] !== '' ? $input['description'] : null,
             'type'           => $input['type'],
             'unit'           => $input['unit'] !== '' ? $input['unit'] : null,
+            'source_field'   => $input['source_field'] !== '' ? $input['source_field'] : null,
+            'require_source' => (int) $input['require_source'],
             'default_weight' => round((float) $input['default_weight'], 2),
             'sort_order'     => (int) $input['sort_order'],
             'is_active'      => (int) $input['is_active'],
@@ -141,6 +196,10 @@ class Criteria extends BaseController
         $unique = $ignoreId === null
             ? 'is_unique[criteria.code]'
             : 'is_unique[criteria.code,id,' . $ignoreId . ']';
+
+        $uniqueSource = $ignoreId === null
+            ? 'is_unique[criteria.source_field]'
+            : 'is_unique[criteria.source_field,id,' . $ignoreId . ']';
 
         return [
             'code' => [
@@ -179,6 +238,19 @@ class Criteria extends BaseController
                 'rules'  => 'permit_empty|max_length[20]',
                 'errors' => ['max_length' => 'Satuan maksimal 20 karakter.'],
             ],
+            'source_field' => [
+                'label'  => 'Sumber nilai',
+                'rules'  => 'permit_empty|in_list[price]|' . $uniqueSource,
+                'errors' => [
+                    'in_list'   => 'Sumber nilai tidak valid.',
+                    'is_unique' => 'Sudah ada kriteria lain yang memakai harga laptop sebagai sumber nilai.',
+                ],
+            ],
+            'require_source' => [
+                'label'  => 'Wajib sumber data',
+                'rules'  => 'required|in_list[0,1]',
+                'errors' => ['required' => 'Pilihan wajib sumber data harus diisi.', 'in_list' => 'Pilihan tidak valid.'],
+            ],
             'default_weight' => [
                 'label'  => 'Bobot default',
                 'rules'  => 'required|numeric|greater_than_equal_to[0]|less_than_equal_to[100]',
@@ -206,8 +278,11 @@ class Criteria extends BaseController
         ];
     }
 
-    /** Redirect sukses, dengan peringatan bila total bobot aktif belum 100%. */
-    private function done(string $message)
+    /**
+     * Redirect sukses. Menambahkan peringatan bila total bobot aktif belum 100%,
+     * dan info bila ada laptop yang belum punya nilai untuk kriteria aktif ini.
+     */
+    private function done(string $message, ?int $criterionId = null)
     {
         $redirect = redirect()->to(site_url(self::URI))->with('success', $message);
 
@@ -215,6 +290,19 @@ class Criteria extends BaseController
         if (abs($total - 100) >= 0.005) {
             $redirect->with('warning', 'Total bobot default kriteria aktif saat ini ' . num_id($total)
                 . '%, belum 100%. Gunakan tombol "Atur Bobot Default" untuk menyesuaikannya.');
+        }
+
+        if ($criterionId !== null) {
+            $criterion = model(CriterionModel::class)->find($criterionId);
+
+            if ($criterion !== null && (int) $criterion['is_active'] === 1) {
+                $missing = (new ScoreService())->laptopsMissingCriterion($criterionId);
+
+                if ($missing > 0) {
+                    $redirect->with('info', $missing . ' laptop belum memiliki nilai untuk kriteria '
+                        . $criterion['code'] . '. Lengkapi di menu Penilaian Alternatif.');
+                }
+            }
         }
 
         return $redirect;

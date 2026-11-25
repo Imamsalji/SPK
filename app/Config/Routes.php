@@ -50,6 +50,11 @@ $routes->group('admin', ['namespace' => 'App\Controllers\Admin', 'filter' => 'ro
     $routes->post('kriteria/(:num)/ubah', 'Criteria::update/$1');
     $routes->post('kriteria/(:num)/hapus', 'Criteria::destroy/$1');
 
+    // Penilaian alternatif (nilai kriteria per laptop)
+    $routes->get('nilai', 'Scores::index');
+    $routes->get('laptop/(:num)/nilai', 'Scores::edit/$1');
+    $routes->post('laptop/(:num)/nilai', 'Scores::update/$1');
+
     // Pengguna
     $routes->get('pengguna', 'Users::index');
     $routes->post('pengguna', 'Users::store');

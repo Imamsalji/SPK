@@ -59,7 +59,7 @@
                             <th>Prosesor</th>
                             <th class="text-center">Nilai</th>
                             <th class="text-center">Status</th>
-                            <th class="text-end" style="width:130px">Aksi</th>
+                            <th class="text-end" style="width:170px">Aksi</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -108,6 +108,8 @@
                                     </span>
                                 </td>
                                 <td class="text-end text-nowrap">
+                                    <a href="<?= site_url('admin/laptop/' . $l['id'] . '/nilai') ?>"
+                                        class="btn btn-sm btn-outline-success" title="Isi nilai kriteria" aria-label="Isi nilai"><i class="bi bi-list-check"></i></a>
                                     <button type="button" class="btn btn-sm btn-outline-primary"
                                         data-bs-toggle="modal" data-bs-target="#laptopModal" data-mode="edit"
                                         data-values="<?= esc(json_encode($values, JSON_UNESCAPED_UNICODE), 'attr') ?>"

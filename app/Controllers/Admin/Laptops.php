@@ -6,8 +6,11 @@ use App\Controllers\BaseController;
 use App\Models\BrandModel;
 use App\Models\CriterionModel;
 use App\Models\LaptopModel;
+use App\Services\ScoreService;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\HTTP\Files\UploadedFile;
+use RuntimeException;
+use Throwable;
 
 class Laptops extends BaseController
 {
@@ -111,9 +114,28 @@ class Laptops extends BaseController
             $data['image'] = null;
         }
 
-        $ok = $laptop ? $model->update($id, $data) : $model->insert($data);
+        // Simpan laptop + sinkronkan nilai kriteria harga dalam satu transaksi.
+        $db       = db_connect();
+        $laptopId = (int) $id;
 
-        if ($ok === false) {
+        try {
+            $db->transBegin();
+
+            $saved = $laptop ? $model->update($id, $data) : $model->insert($data);
+            if ($saved === false) {
+                throw new RuntimeException('Gagal menyimpan data laptop.');
+            }
+
+            $laptopId = $laptop ? (int) $id : (int) $saved;
+
+            if (! (new ScoreService())->syncPriceForLaptop($laptopId, (float) $data['price'])) {
+                throw new RuntimeException('Gagal menyinkronkan nilai harga.');
+            }
+
+            $db->transCommit();
+        } catch (Throwable $e) {
+            $db->transRollback();
+            log_message('error', 'Laptops::save: ' . $e->getMessage());
             $this->deleteImage($newImage);
 
             return redirect_form_errors(self::URI, $mode, $id, ['name' => 'Data gagal disimpan. Silakan coba lagi.'], $old);
@@ -124,8 +146,13 @@ class Laptops extends BaseController
             $this->deleteImage($laptop['image']);
         }
 
+        if (! $laptop) {
+            return redirect()->to(site_url('admin/laptop/' . $laptopId . '/nilai'))
+                ->with('success', 'Laptop "' . $input['name'] . '" berhasil ditambahkan. Lanjutkan dengan mengisi nilai kriterianya.');
+        }
+
         return redirect()->to(site_url(self::URI))
-            ->with('success', 'Laptop "' . $input['name'] . '" berhasil ' . ($laptop ? 'diperbarui.' : 'ditambahkan. Lengkapi nilai kriterianya pada Tahap 5.'));
+            ->with('success', 'Laptop "' . $input['name'] . '" berhasil diperbarui.');
     }
 
     private function rules(bool $withImage): array

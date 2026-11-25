@@ -238,3 +238,7 @@ body.sidebar-open .sidebar-backdrop {
     font-size: 3.5rem;
 }
 .table > :not(caption) > * > * { padding-top: .7rem; padding-bottom: .7rem; }
+/* ---------- Tahap 5: form nilai alternatif ---------- */
+.score-row { padding: .9rem 0; border-bottom: 1px solid var(--bs-border-color); }
+.score-row:first-child { padding-top: 0; }
+.score-row:last-child { padding-bottom: 0; border-bottom: 0; }
