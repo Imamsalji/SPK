@@ -1,6 +1,11 @@
 <?= $this->extend('layouts/main') ?>
 
 <?= $this->section('content') ?>
+<?php if (! empty($notice)): ?>
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle me-1"></i><?= esc($notice) ?>
+    </div>
+<?php endif; ?>
 <?php
 $criteria   = $options['criteria'];
 $eligible   = array_values($options['eligible']);

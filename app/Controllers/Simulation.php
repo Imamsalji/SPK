@@ -2,22 +2,42 @@
 
 namespace App\Controllers;
 
+use App\Services\CalculationService;
 use App\Services\SAWService;
 use App\Services\SimulationService;
+use Throwable;
 
 class Simulation extends BaseController
 {
-    private const DRAFT = 'sim_draft';
-
     /** Halaman pilih laptop dan atur bobot. */
     public function index()
     {
         $service = new SimulationService();
         $options = $service->options();
 
-        // Prioritas isian: hasil validasi gagal (flash) > draft terakhir > default.
-        $flash = session()->getFlashdata('sim_old');
-        $state = is_array($flash) ? $flash : ($this->draft() ?? []);
+        // Prioritas isian: hasil validasi gagal (flash) > dimuat dari riwayat (?ulang=) > default.
+        $flash  = session()->getFlashdata('sim_old');
+        $state  = is_array($flash) ? $flash : [];
+        $notice = null;
+
+        if ($state === []) {
+            $again = (int) $this->request->getGet('ulang');
+
+            if ($again > 0) {
+                $data = (new CalculationService())->find($again, auth_user());
+
+                if ($data !== null) {
+                    $weights = [];
+                    foreach ($data['result']['criteria'] as $c) {
+                        $weights[$c['code']] = plain_number($c['weight_percent']);
+                    }
+
+                    $state  = ['name' => '', 'laptop_ids' => $data['laptop_ids'], 'weights' => $weights];
+                    $notice = 'Pilihan dan bobot dimuat dari "' . $data['calculation']['name']
+                        . '". Laptop yang sudah dihapus, nonaktif, atau belum lengkap nilainya tidak ikut dipilih.';
+                }
+            }
+        }
 
         $selected = array_map('intval', (array) ($state['laptop_ids'] ?? []));
         if ($state === []) {
@@ -40,12 +60,13 @@ class Simulation extends BaseController
             'selected' => $selected,
             'weights'  => $weights,
             'name'     => (string) ($state['name'] ?? ''),
+            'notice'   => $notice,
             'min'      => SAWService::MIN_ALTERNATIVES,
             'max'      => SimulationService::MAX_ALTERNATIVES,
         ]);
     }
 
-    /** Validasi dan simpan draft, lalu tampilkan hasil. */
+    /** Validasi, hitung dengan SAW, simpan snapshot, lalu buka halaman riwayat. */
     public function calculate()
     {
         $input = $this->collect();
@@ -56,6 +77,7 @@ class Simulation extends BaseController
         ];
 
         $errors = $input['errors'];
+        $run    = null;
 
         if ($errors === []) {
             $run    = (new SimulationService())->run($input['laptop_ids'], $input['weights']);
@@ -68,58 +90,18 @@ class Simulation extends BaseController
                 ->with('sim_old', $state);
         }
 
-        session()->set(self::DRAFT, $state + [
-            'user_id'       => (int) auth_user()['id'],
-            'calculated_at' => date('Y-m-d H:i:s'),
-        ]);
+        try {
+            $id = (new CalculationService())->save(auth_user(), $input['name'], $run['result'], $run['meta']);
+        } catch (Throwable $e) {
+            log_message('error', 'Simulation::calculate: ' . $e->getMessage());
 
-        return redirect()->to(site_url('simulasi/hasil'));
-    }
-
-    /** Tampilkan hasil dari draft (dihitung ulang dengan data master saat ini). */
-    public function result()
-    {
-        $draft = $this->draft();
-
-        if ($draft === null) {
             return redirect()->to(site_url('simulasi'))
-                ->with('info', 'Belum ada simulasi. Pilih laptop dan atur bobot terlebih dahulu.');
+                ->with('error', 'Hasil perhitungan gagal disimpan. Silakan coba lagi.')
+                ->with('sim_old', $state);
         }
 
-        $run = (new SimulationService())->run($draft['laptop_ids'], $draft['weights']);
-
-        if ($run['errors'] !== []) {
-            return redirect()->to(site_url('simulasi'))
-                ->with('warning', 'Data berubah sejak perhitungan terakhir. Periksa kembali pilihan Anda.')
-                ->with('errors', $run['errors'])
-                ->with('sim_old', [
-                    'name'       => $draft['name'],
-                    'laptop_ids' => $draft['laptop_ids'],
-                    'weights'    => $draft['weights'],
-                ]);
-        }
-
-        $calculatedAt = (string) ($draft['calculated_at'] ?? date('Y-m-d H:i:s'));
-        $name         = $draft['name'] !== ''
-            ? $draft['name']
-            : 'Simulasi ' . date('d/m/Y H:i', strtotime($calculatedAt));
-
-        return view('simulation/result', [
-            'title'        => 'Hasil Simulasi',
-            'simName'      => $name,
-            'calculatedAt' => $calculatedAt,
-            'userName'     => auth_user()['name'],
-            'result'       => $run['result'],
-            'meta'         => $run['meta'],
-        ]);
-    }
-
-    /** Hapus draft dan mulai simulasi baru. */
-    public function reset()
-    {
-        session()->remove(self::DRAFT);
-
-        return redirect()->to(site_url('simulasi'));
+        return redirect()->to(site_url('riwayat/' . $id))
+            ->with('success', 'Perhitungan berhasil dan tersimpan di riwayat.');
     }
 
     // ------------------------------------------------------------------
@@ -182,25 +164,5 @@ class Simulation extends BaseController
         }
 
         return ['name' => $name, 'laptop_ids' => $ids, 'weights' => $weights, 'errors' => $errors];
-    }
-
-    /** Draft milik pengguna yang sedang login, atau null. */
-    private function draft(): ?array
-    {
-        $draft = session()->get(self::DRAFT);
-
-        $valid = is_array($draft)
-            && (int) ($draft['user_id'] ?? 0) === (int) auth_user()['id']
-            && is_array($draft['laptop_ids'] ?? null)
-            && is_array($draft['weights'] ?? null)
-            && is_string($draft['name'] ?? null);
-
-        if (! $valid) {
-            session()->remove(self::DRAFT);
-
-            return null;
-        }
-
-        return $draft;
     }
 }

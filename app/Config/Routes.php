@@ -18,12 +18,15 @@ $routes->group('', ['filter' => 'guest'], static function ($routes) {
 $routes->post('logout', 'Auth::logout', ['filter' => 'auth']);
 
 /*
- * BERSAMA (admin & mahasiswa; cakupan data dibatasi di controller)
+ * BERSAMA (admin & mahasiswa; cakupan data dibatasi di model/service)
  */
 $routes->group('', ['filter' => 'auth'], static function ($routes) {
     $routes->get('dashboard', 'Dashboard::index');
-    $routes->get('hasil', 'ComingSoon::results');
-    $routes->get('riwayat', 'ComingSoon::history');
+
+    $routes->get('hasil', 'Calculations::latest');
+    $routes->get('riwayat', 'Calculations::index');
+    $routes->get('riwayat/(:num)', 'Calculations::show/$1');
+
     $routes->get('laporan', 'ComingSoon::reports');
 });
 
@@ -71,6 +74,4 @@ $routes->group('', ['filter' => 'role:mahasiswa'], static function ($routes) {
 
     $routes->get('simulasi', 'Simulation::index');
     $routes->post('simulasi/hitung', 'Simulation::calculate');
-    $routes->get('simulasi/hasil', 'Simulation::result');
-    $routes->post('simulasi/baru', 'Simulation::reset');
 });
