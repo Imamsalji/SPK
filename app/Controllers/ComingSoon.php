@@ -2,20 +2,15 @@
 
 namespace App\Controllers;
 
-/** Placeholder sementara untuk menu yang belum dibuat. Dihapus bertahap di Tahap 7-10. */
+/** Placeholder sementara untuk menu yang belum dibuat. Dihapus bertahap di Tahap 8 dan 10. */
 class ComingSoon extends BaseController
 {
     private const PAGES = [
-        'simulation' => ['Simulasi SPK',      'bi-calculator',        'Tahap 7'],
-        'results'    => ['Hasil Perhitungan', 'bi-trophy',            'Tahap 8'],
-        'history'    => ['Riwayat',           'bi-clock-history',     'Tahap 8'],
-        'reports'    => ['Laporan',           'bi-file-earmark-text', 'Tahap 10'],
+        'results' => ['Hasil Perhitungan', 'bi-trophy',            'Tahap 8'],
+        'history' => ['Riwayat',           'bi-clock-history',     'Tahap 8'],
+        'reports' => ['Laporan',           'bi-file-earmark-text', 'Tahap 10'],
     ];
 
-    public function simulation()
-    {
-        return $this->page('simulation');
-    }
     public function results()
     {
         return $this->page('results');

@@ -56,7 +56,7 @@
                     </div>
                 <?php endif; ?>
 
-                <a href="<?= site_url('simulasi') ?>" class="btn btn-primary mt-4">
+                <a href="<?= site_url('simulasi?pilih=' . (int) $laptop['id']) ?>" class="btn btn-primary mt-4">
                     <i class="bi bi-calculator me-1"></i>Gunakan dalam simulasi SPK
                 </a>
             </div>

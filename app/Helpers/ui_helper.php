@@ -99,3 +99,10 @@ if (! function_exists('redirect_form_errors')) {
             ->with('reopen', ['mode' => $mode, 'id' => $id, 'old' => $old]);
     }
 }
+if (! function_exists('fmt_dec')) {
+    /** Angka desimal format Indonesia dengan jumlah desimal tetap: 0.8494 -> "0,8494". */
+    function fmt_dec(float|int|string|null $value, int $decimals = 4): string
+    {
+        return number_format((float) $value, $decimals, ',', '.');
+    }
+}

@@ -82,7 +82,7 @@ class Auth extends BaseController
     public function logout()
     {
         $session = session();
-        $session->remove(['auth_user', 'intended_url']);
+        $session->remove(['auth_user', 'intended_url', 'sim_draft']);
         $session->regenerate(true);
 
         return redirect()->to(site_url('login'))->with('success', 'Anda telah keluar.');

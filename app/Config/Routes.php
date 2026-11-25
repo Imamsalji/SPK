@@ -68,5 +68,9 @@ $routes->group('admin', ['namespace' => 'App\Controllers\Admin', 'filter' => 'ro
 $routes->group('', ['filter' => 'role:mahasiswa'], static function ($routes) {
     $routes->get('katalog', 'Catalog::index');
     $routes->get('katalog/(:num)', 'Catalog::show/$1');
-    $routes->get('simulasi', 'ComingSoon::simulation');
+
+    $routes->get('simulasi', 'Simulation::index');
+    $routes->post('simulasi/hitung', 'Simulation::calculate');
+    $routes->get('simulasi/hasil', 'Simulation::result');
+    $routes->post('simulasi/baru', 'Simulation::reset');
 });
